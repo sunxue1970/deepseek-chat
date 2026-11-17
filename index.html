@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>DeepSeek 助手</title>
+<title>DeepSeek 角色扮演</title>
 <style>
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -17,236 +17,393 @@
     font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     background: #f4f5f7; color: #1f2329;
   }
+  /* 顶栏 */
   header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top));
-    background: #4d6bfe; color: #fff; font-weight: 600; font-size: 17px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top));
+    background: #4d6bfe; color: #fff; font-weight: 600; font-size: 16px;
   }
-  #gear {
-    background: transparent; border: none; color: #fff;
-    font-size: 20px; cursor: pointer; padding: 2px 6px; border-radius: 8px;
+  .icon {
+    background: transparent; border: none; color: #fff; font-size: 20px;
+    cursor: pointer; padding: 4px 8px; border-radius: 8px; line-height: 1;
   }
-  #gear:active { background: rgba(255,255,255,.25); }
-  #chat {
-    flex: 1; overflow-y: auto; padding: 16px;
-    display: flex; flex-direction: column; gap: 10px;
-    -webkit-overflow-scrolling: touch;
+  .icon:active { background: rgba(255,255,255,.25); }
+  #chatTitle { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+  /* 会话抽屉 */
+  #drawer {
+    position: fixed; top: 0; bottom: 0; left: 0; width: 82%; max-width: 320px;
+    background: #fff; z-index: 30; transform: translateX(-100%); transition: transform .2s;
+    display: flex; flex-direction: column; box-shadow: 2px 0 12px rgba(0,0,0,.15);
   }
-  .msg {
-    max-width: 82%; padding: 10px 14px; border-radius: 16px;
-    line-height: 1.65; white-space: pre-wrap; word-break: break-word; font-size: 15px;
+  #drawer.open { transform: translateX(0); }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; padding-top: calc(14px + env(safe-area-inset-top)); font-weight: 600; border-bottom: 1px solid #eee; }
+  .mini { border: none; background: #eef0f4; color: #333; padding: 6px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  #sessionList { list-style: none; margin: 0; padding: 8px; overflow-y: auto; flex: 1; }
+  #sessionList li {
+    padding: 12px; border-radius: 10px; margin-bottom: 4px; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    font-size: 14px;
   }
+  #sessionList li.active { background: #eef1ff; color: #3b5bdb; font-weight: 600; }
+  #sessionList li:active { background: #f2f3f5; }
+  .del { border: none; background: transparent; color: #d1242f; font-size: 16px; cursor: pointer; padding: 2px 6px; }
+  #mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; display: none;
+  }
+  #mask.show { display: block; }
+  /* 聊天区 */
+  #chat { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
+  .msg { max-width: 84%; padding: 10px 14px; border-radius: 16px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; font-size: 15px; }
   .user { align-self: flex-end; background: #4d6bfe; color: #fff; border-bottom-right-radius: 4px; }
   .bot { align-self: flex-start; background: #fff; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
   .bot.loading { color: #999; font-style: italic; }
-  form {
-    display: flex; gap: 8px; padding: 10px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
-    background: #fff; border-top: 1px solid #eee;
-  }
-  #input {
-    flex: 1; padding: 12px 14px; border: 1px solid #ddd; border-radius: 22px;
-    font-size: 16px; outline: none; min-width: 0;
-  }
+  .hint { align-self: center; color: #a0a4ab; font-size: 12px; text-align: center; padding: 6px 12px; }
+  /* 输入区 */
+  form { display: flex; gap: 8px; padding: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    background: #fff; border-top: 1px solid #eee; }
+  #input { flex: 1; padding: 12px 14px; border: 1px solid #ddd; border-radius: 22px; font-size: 16px; outline: none; min-width: 0; }
   #input:focus { border-color: #4d6bfe; }
-  #send {
-    border: none; background: #4d6bfe; color: #fff; padding: 0 20px;
-    border-radius: 22px; font-size: 16px; cursor: pointer;
+  #sendBtn { border: none; background: #4d6bfe; color: #fff; padding: 0 18px; border-radius: 22px; font-size: 16px; cursor: pointer; }
+  #sendBtn:disabled { background: #b9c4f5; }
+  /* 设置弹层 */
+  .overlay { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { background: #fff; width: 100%; max-width: 520px; max-height: 92dvh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #eee; }
+  .sheet-head h3 { margin: 0; font-size: 17px; }
+  .sheet-body { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  .sheet-body label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #444; }
+  .sheet-body input[type=text], .sheet-body input[type=password], .sheet-body textarea, .sheet-body select {
+    width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 15px; font-family: inherit; outline: none; background: #fafbfc;
   }
-  #send:disabled { background: #b9c4f5; }
-  .hidden { display: none !important; }
-
-  /* 设置 / 密钥弹层 */
-  #overlay {
-    position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.45);
-    display: flex; align-items: center; justify-content: center; padding: 20px;
-  }
-  .card { background: #fff; border-radius: 16px; padding: 22px; width: 100%; max-width: 430px; }
-  .card h3 { margin: 0 0 10px; font-size: 18px; }
-  .card p { color: #666; font-size: 14px; line-height: 1.6; margin: 0 0 14px; }
-  .card input {
-    width: 100%; padding: 12px 14px; border: 1px solid #ccc;
-    border-radius: 10px; font-size: 15px; margin-bottom: 14px; outline: none;
-  }
-  .card input:focus { border-color: #4d6bfe; }
-  .row { display: flex; gap: 10px; }
-  .row button { flex: 1; padding: 12px; border: none; border-radius: 10px; font-size: 15px; cursor: pointer; }
-  #saveKey { background: #4d6bfe; color: #fff; }
+  .sheet-body textarea { resize: vertical; }
+  .sheet-body input:focus, .sheet-body textarea:focus, .sheet-body select:focus { border-color: #4d6bfe; }
+  .ops { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .ops button { padding: 10px 14px; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
+  .primary { background: #4d6bfe; color: #fff; }
   .ghost { background: #eef0f4; color: #333; }
-  .err { color: #d1242f; font-size: 13px; min-height: 18px; margin: 8px 0 0; }
-  .tip { font-size: 12px; color: #999; margin-top: 14px; line-height: 1.6; }
+  .danger { background: #fff0f0; color: #d1242f; }
+  .err { color: #d1242f; font-size: 13px; min-height: 18px; margin: 0; }
+  .hidden { display: none !important; }
+  .templine { display: flex; align-items: center; gap: 10px; }
+  .templine input[type=range] { flex: 1; }
 </style>
 </head>
 <body>
   <header>
-    <span>DeepSeek 助手</span>
-    <button id="gear" title="设置">⚙</button>
+    <button id="menuBtn" class="icon" title="会话列表">☰</button>
+    <span id="chatTitle">角色扮演</span>
+    <button id="newBtn" class="icon" title="新建会话">＋</button>
+    <button id="gearBtn" class="icon" title="设置">⚙</button>
   </header>
 
-  <div id="chat"></div>
+  <aside id="drawer">
+    <div class="drawer-head"><span>我的会话</span><button id="drawerNew" class="mini">＋ 新建</button></div>
+    <ul id="sessionList"></ul>
+  </aside>
+  <div id="mask"></div>
+
+  <main id="chat"></main>
 
   <form id="form">
-    <input id="input" type="text" placeholder="输入消息…" autocomplete="off" enterkeyhint="send">
-    <button id="send" type="submit">发送</button>
+    <input id="input" placeholder="说点什么…" autocomplete="off" enterkeyhint="send">
+    <button id="sendBtn" type="submit">发送</button>
   </form>
 
-  <!-- 密钥设置弹层 -->
-  <div id="overlay" class="hidden">
-    <div class="card">
-      <h3>设置 API Key</h3>
-      <p>首次使用，请粘贴你的 DeepSeek API Key（sk- 开头）。它只保存在这台设备的浏览器里，不会上传到任何服务器。</p>
-      <input id="keyInput" type="password" placeholder="sk-xxxxxxxxxxxxxxxx">
-      <div class="row">
-        <button id="saveKey">保存</button>
-        <button id="cancelKey" class="ghost">取消</button>
+  <div id="settings" class="overlay hidden">
+    <div class="sheet">
+      <div class="sheet-head"><h3>设置 / 角色卡</h3><button id="closeSettings" class="mini">关闭</button></div>
+      <div class="sheet-body">
+        <label>角色名<input id="fName" type="text" placeholder="例如：艾莉丝·夜歌"></label>
+        <label>角色设定<textarea id="fDesc" rows="3" placeholder="身份、性格、外貌、经历、与你的关系…"></textarea></label>
+        <label>说话风格<textarea id="fStyle" rows="2" placeholder="例如：慵懒、爱用短句、偶尔冷嘲、不加表情包"></textarea></label>
+        <label>当前场景<textarea id="fScene" rows="2" placeholder="例如：雨夜的小酒馆，炉火噼啪作响"></textarea></label>
+        <label>模型
+          <select id="fModel">
+            <option value="deepseek-flash">deepseek-flash（便宜、快）</option>
+            <option value="deepseek-v4-pro">deepseek-v4-pro（更强、稍贵）</option>
+          </select>
+        </label>
+        <label>创意度（温度）<span class="templine"><input id="fTemp" type="range" min="0.6" max="1.3" step="0.1"><span id="tempVal">1.0</span></span></label>
+        <label>API Key<input id="fKey" type="password" placeholder="sk-..."></label>
+        <div class="ops">
+          <button id="saveSettings" class="primary">保存</button>
+          <button id="clearChat" class="ghost">清空当前对话</button>
+          <button id="deleteSession" class="danger">删除当前会话</button>
+        </div>
+        <p class="err" id="sMsg"></p>
       </div>
-      <button id="clearHist" class="ghost" style="width:100%;margin-top:10px;padding:12px;border:none;border-radius:10px;font-size:15px;cursor:pointer;background:#fff3f3;color:#d1242f;">清空聊天记录</button>
-      <p class="err" id="keyMsg"></p>
-      <p class="tip">提示：密钥可在 <b>platform.deepseek.com/api_keys</b> 创建。若在分享的网络或公共设备上使用，用完记得清空。</p>
     </div>
   </div>
 
 <script>
   const API_URL = 'https://api.deepseek.com/chat/completions';
-  const MODEL = 'deepseek-flash';           // 也可换成 'deepseek-v4-pro'
-  const SYSTEM_PROMPT = '你是一个友好、简洁、准确的中文助手。';
+  const KEY_LS = 'ds_key';
+  const DB_LS = 'ds_db_v2';
+  const WINDOW_MSGS = 20;   // 每次最多带最近 20 条
+  const COMPRESS_AT = 30;   // 超过 30 条触发压缩
 
-  const chatEl   = document.getElementById('chat');
-  const form     = document.getElementById('form');
-  const input    = document.getElementById('input');
-  const sendBtn  = document.getElementById('send');
-  const overlay  = document.getElementById('overlay');
-  const keyInput = document.getElementById('keyInput');
-  const keyMsg   = document.getElementById('keyMsg');
-  const cancelBtn= document.getElementById('cancelKey');
-
-  let messages = [];
-  let isSending = false;
-
-  const getKey = () => localStorage.getItem('ds_key') || '';
-  const setKey = (k) => localStorage.setItem('ds_key', k);
-
-  function addMsg(role, text) {
-    const div = document.createElement('div');
-    div.className = 'msg ' + role;
-    div.textContent = text;
-    chatEl.appendChild(div);
-    chatEl.scrollTop = chatEl.scrollHeight;
-    return div;
+  /* ---------- 数据 ---------- */
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+  function newSession(title) {
+    return { id: uid(), title: title || '新角色', persona: { name: '', desc: '', style: '', scene: '' }, messages: [], summary: '' };
   }
+  function defaultDB() {
+    const s = newSession('异世界 · 主角');
+    s.persona = { name: '艾莉丝', desc: '一位游历四方的年轻女剑士，外冷内热。', style: '说话简短、偶尔带一点嘲讽，情绪藏在细节里。', scene: '雨夜的路边酒馆。' };
+    return { currentId: s.id, sessions: { [s.id]: s }, settings: { model: 'deepseek-flash', temp: 1.0 } };
+  }
+  let DB;
+  try { DB = JSON.parse(localStorage.getItem(DB_LS) || 'null'); } catch (e) { DB = null; }
+  if (!DB || !DB.sessions || !Object.keys(DB.sessions).length) DB = defaultDB();
+  if (!DB.settings) DB.settings = { model: 'deepseek-flash', temp: 1.0 };
+  if (!DB.sessions[DB.currentId]) DB.currentId = Object.keys(DB.sessions)[0];
 
-  function renderHistory() {
+  function saveDB() { localStorage.setItem(DB_LS, JSON.stringify(DB)); }
+  function cur() { return DB.sessions[DB.currentId]; }
+  function getKey() { return localStorage.getItem(KEY_LS) || ''; }
+  function setKey(k) { localStorage.setItem(KEY_LS, k); }
+
+  /* ---------- 关键元素 ---------- */
+  const chatEl = document.getElementById('chat');
+  const form = document.getElementById('form');
+  const input = document.getElementById('input');
+  const sendBtn = document.getElementById('sendBtn');
+  const drawer = document.getElementById('drawer');
+  const mask = document.getElementById('mask');
+  const sessionList = document.getElementById('sessionList');
+  const chatTitle = document.getElementById('chatTitle');
+  let busy = false;
+
+  /* ---------- 渲染 ---------- */
+  function addMsg(role, text) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + role;
+    d.textContent = text;
+    chatEl.appendChild(d);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    return d;
+  }
+  function renderChat() {
     chatEl.innerHTML = '';
-    messages.forEach(m => {
-      if (m.role === 'user') addMsg('user', m.content);
-      else if (m.role === 'assistant') addMsg('bot', m.content);
+    const s = cur();
+    chatTitle.textContent = s.title || '角色扮演';
+    if (!s.messages.length) {
+      const h = document.createElement('div');
+      h.className = 'hint';
+      h.textContent = '输入一句话，开始你的故事。（点右上角 ⚙ 可设定角色卡）';
+      chatEl.appendChild(h);
+    }
+    s.messages.forEach(m => addMsg(m.role === 'user' ? 'user' : 'bot', m.content));
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+  function renderSessions() {
+    sessionList.innerHTML = '';
+    Object.values(DB.sessions).forEach(s => {
+      const li = document.createElement('li');
+      if (s.id === DB.currentId) li.className = 'active';
+      const t = document.createElement('span');
+      t.textContent = s.title || '新角色';
+      t.style.flex = '1'; t.style.overflow = 'hidden'; t.style.textOverflow = 'ellipsis'; t.style.whiteSpace = 'nowrap';
+      t.onclick = () => switchSession(s.id);
+      const del = document.createElement('button');
+      del.className = 'del'; del.textContent = '×';
+      del.onclick = (e) => { e.stopPropagation(); deleteSession(s.id); };
+      li.appendChild(t); li.appendChild(del);
+      sessionList.appendChild(li);
     });
   }
 
-  function loadHistory() {
-    try { messages = JSON.parse(localStorage.getItem('ds_history') || '[]'); } catch { messages = []; }
-    if (!Array.isArray(messages) || !messages.length) messages = [{ role: 'system', content: SYSTEM_PROMPT }];
-    renderHistory();
+  /* ---------- 会话操作 ---------- */
+  function switchSession(id) {
+    DB.currentId = id; saveDB(); renderChat(); renderSessions(); closeDrawer();
   }
-
-  function saveHistory() {
-    const sys = (messages[0] && messages[0].role === 'system') ? messages[0] : { role: 'system', content: SYSTEM_PROMPT };
-    const rest = messages.filter(m => m.role !== 'system').slice(-40);
-    messages = [sys, ...rest];
-    localStorage.setItem('ds_history', JSON.stringify(messages));
+  function createSession() {
+    const s = newSession('新角色');
+    DB.sessions[s.id] = s; DB.currentId = s.id; saveDB();
+    renderChat(); renderSessions(); closeDrawer();
+    openSettings();
   }
-
-  function openKey() {
-    keyInput.value = '';
-    keyMsg.textContent = '';
-    cancelBtn.classList.toggle('hidden', !getKey());   // 没密钥时不给“取消”
-    overlay.classList.remove('hidden');
-    setTimeout(() => keyInput.focus(), 50);
+  function deleteSession(id) {
+    if (!confirm('确定删除这个会话？')) return;
+    delete DB.sessions[id];
+    if (!Object.keys(DB.sessions).length) { const s = newSession('新角色'); DB.sessions[s.id] = s; DB.currentId = s.id; }
+    if (!DB.sessions[DB.currentId]) DB.currentId = Object.keys(DB.sessions)[0];
+    saveDB(); renderChat(); renderSessions();
   }
-  function closeKey() { overlay.classList.add('hidden'); }
+  function openDrawer() { drawer.classList.add('open'); mask.classList.add('show'); renderSessions(); }
+  function closeDrawer() { drawer.classList.remove('open'); mask.classList.remove('show'); }
 
-  document.getElementById('saveKey').onclick = () => {
-    const k = keyInput.value.trim();
-    if (!k.startsWith('sk-') || k.length < 20) { keyMsg.textContent = '请填写正确的、以 sk- 开头的 API Key'; return; }
-    setKey(k);
-    closeKey();
-    addMsg('bot', '✅ 密钥已保存，现在可以开始聊天了。');
+  /* ---------- 设置 ---------- */
+  const settings = document.getElementById('settings');
+  function openSettings() {
+    const s = cur();
+    document.getElementById('fName').value = s.persona.name || '';
+    document.getElementById('fDesc').value = s.persona.desc || '';
+    document.getElementById('fStyle').value = s.persona.style || '';
+    document.getElementById('fScene').value = s.persona.scene || '';
+    document.getElementById('fModel').value = DB.settings.model;
+    document.getElementById('fTemp').value = DB.settings.temp;
+    document.getElementById('tempVal').textContent = Number(DB.settings.temp).toFixed(1);
+    document.getElementById('fKey').value = getKey();
+    document.getElementById('sMsg').textContent = '';
+    settings.classList.remove('hidden');
+  }
+  function closeSettings() { settings.classList.add('hidden'); }
+
+  document.getElementById('tempVal');
+  document.getElementById('fTemp').addEventListener('input', e => {
+    document.getElementById('tempVal').textContent = Number(e.target.value).toFixed(1);
+  });
+  document.getElementById('saveSettings').onclick = () => {
+    const s = cur();
+    s.persona.name = document.getElementById('fName').value.trim();
+    s.persona.desc = document.getElementById('fDesc').value.trim();
+    s.persona.style = document.getElementById('fStyle').value.trim();
+    s.persona.scene = document.getElementById('fScene').value.trim();
+    if (s.persona.name && (s.title === '新角色' || !s.title)) s.title = s.persona.name;
+    DB.settings.model = document.getElementById('fModel').value;
+    DB.settings.temp = Number(document.getElementById('fTemp').value);
+    const k = document.getElementById('fKey').value.trim();
+    if (k) { if (!k.startsWith('sk-')) { document.getElementById('sMsg').textContent = 'API Key 应以 sk- 开头'; return; } setKey(k); }
+    saveDB(); renderChat(); renderSessions(); closeSettings();
   };
-  cancelBtn.onclick = closeKey;
-  document.getElementById('gear').onclick = openKey;
-  document.getElementById('clearHist').onclick = () => {
-    localStorage.removeItem('ds_history');
-    messages = [{ role: 'system', content: SYSTEM_PROMPT }];
-    renderHistory();
-    closeKey();
-    addMsg('bot', '🧹 聊天记录已清空。');
+  document.getElementById('clearChat').onclick = () => {
+    if (!confirm('清空当前会话的全部对话？')) return;
+    const s = cur(); s.messages = []; s.summary = ''; saveDB(); renderChat(); closeSettings();
   };
+  document.getElementById('deleteSession').onclick = () => { deleteSession(DB.currentId); closeSettings(); };
+  document.getElementById('closeSettings').onclick = closeSettings;
+  document.getElementById('menuBtn').onclick = openDrawer;
+  document.getElementById('newBtn').onclick = createSession;
+  document.getElementById('drawerNew').onclick = createSession;
+  document.getElementById('gearBtn').onclick = openSettings;
+  mask.onclick = closeDrawer;
 
-  function mapError(status, detail) {
-    if (status === 401) return '401 密钥无效或已失效，点右上角 ⚙ 重新填写';
-    if (status === 402) return '402 账户余额不足，请到 DeepSeek 平台充值';
-    if (status === 429) return '429 请求太频繁，稍等一下再试';
-    if (status === 503) return '503 服务器繁忙，请稍后再试';
-    return status + '：' + (detail || '未知错误');
+  /* ---------- 提示词 ---------- */
+  function buildSystem(s) {
+    const p = s.persona;
+    let base =
+`你正在进行一场中文角色扮演，目的是共同创作一部小说。请严格按要求输出：
+1. 以角色的身份自然地说话、行动、思考，像一个活人，而不是 AI 助手。
+2. 语言生活化、具体、有画面感。多用短句、口语、心理描写、感官细节。
+3. 严禁 AI 腔：不要总结、不要分点、不要说教、不要出现"作为AI""希望以上内容对你有帮助"这类话，不要每句都反问玩家。
+4. 情感与暧昧用意识流、留白、隐喻来表现，点到为止，不写露骨的性描写。
+5. 每次回复约 150~400 字，自然承接上一段，不要重复玩家刚说过的话。
+6. 玩家的话可以当作"你"听到或看到的内容来回应。`;
+    if (p.name) base += `\n\n角色名：${p.name}`;
+    if (p.desc) base += `\n角色设定：${p.desc}`;
+    if (p.style) base += `\n说话风格：${p.style}`;
+    if (p.scene) base += `\n当前场景：${p.scene}`;
+    if (s.summary) base += `\n\n【前情提要】\n${s.summary}`;
+    return base;
   }
 
+  /* ---------- 发送（流式） ---------- */
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (isSending) return;
-    const q = input.value.trim();
-    if (!q) return;
-    if (!getKey()) { openKey(); return; }
+    if (busy) return;
+    const text = input.value.trim();
+    if (!text) return;
+    if (!getKey()) { openSettings(); document.getElementById('sMsg').textContent = '请先填写 API Key'; return; }
 
+    const s = cur();
     input.value = '';
-    addMsg('user', q);
-    messages.push({ role: 'user', content: q });
+    s.messages.push({ role: 'user', content: text });
+    addMsg('user', text);
+    const bubble = addMsg('bot', '');
+    bubble.classList.add('loading');
+    bubble.textContent = '正在思考…';
+    busy = true; sendBtn.disabled = true;
 
-    const loading = addMsg('bot', '正在思考…');
-    loading.classList.add('loading');
-    isSending = true;
-    sendBtn.disabled = true;
+    const payload = {
+      model: DB.settings.model,
+      temperature: Number(DB.settings.temp),
+      stream: true,
+      messages: [{ role: 'system', content: buildSystem(s) }, ...s.messages.slice(-WINDOW_MSGS)]
+    };
 
+    let acc = '';
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + getKey()
-        },
-        body: JSON.stringify({ model: MODEL, messages, stream: false })
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getKey() },
+        body: JSON.stringify(payload)
       });
-
       if (!res.ok) {
         let detail = '';
-        try { const j = await res.json(); detail = (j.error && j.error.message) ? j.error.message : JSON.stringify(j); } catch {}
-        throw new Error(mapError(res.status, detail));
+        try { const j = await res.json(); detail = (j.error && j.error.message) ? j.error.message : ''; } catch (err) {}
+        throw new Error(mapErr(res.status, detail));
       }
-
-      const data = await res.json();
-      const reply = (data.choices && data.choices[0] && data.choices[0].message)
-        ? data.choices[0].message.content
-        : '（没有返回内容）';
-
-      loading.remove();
-      addMsg('bot', reply);
-      messages.push({ role: 'assistant', content: reply });
-      saveHistory();
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      bubble.classList.remove('loading');
+      bubble.textContent = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (!line.startsWith('data:')) continue;
+          const data = line.slice(5).trim();
+          if (data === '[DONE]') continue;
+          try {
+            const j = JSON.parse(data);
+            const delta = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
+            if (delta) { acc += delta; bubble.textContent = acc; chatEl.scrollTop = chatEl.scrollHeight; }
+          } catch (err) {}
+        }
+      }
+      if (!acc) { bubble.textContent = '（没有返回内容）'; }
+      s.messages.push({ role: 'assistant', content: acc });
+      saveDB();
+      if (s.messages.length > COMPRESS_AT) compress(s);
     } catch (err) {
-      loading.textContent = '出错了：' + err.message;
-      loading.classList.remove('loading');
+      bubble.classList.remove('loading');
+      bubble.textContent = '出错了：' + err.message;
     } finally {
-      isSending = false;
-      sendBtn.disabled = false;
+      busy = false; sendBtn.disabled = false; input.focus();
     }
   });
 
-  loadHistory();
-  if (!getKey()) openKey();
+  function mapErr(status, detail) {
+    if (status === 401) return '401 密钥无效，点 ⚙ 重新填写';
+    if (status === 402) return '402 余额不足，请到 DeepSeek 平台充值';
+    if (status === 429) return '429 请求太频繁，稍后再试';
+    if (status === 503) return '503 服务器繁忙，稍后再试';
+    return status + '：' + (detail || '未知错误');
+  }
+
+  /* ---------- 历史压缩（省 token） ---------- */
+  async function compress(s) {
+    if (!getKey() || s.messages.length <= COMPRESS_AT) return;
+    const cut = s.messages.length - WINDOW_MSGS;
+    const chunk = s.messages.slice(0, cut);
+    const text = chunk.map(m => (m.role === 'user' ? '【玩家】' : '【角色】') + m.content).join('\n');
+    const prompt = `请把下面这段角色扮演剧情压缩成不超过 200 字的前情摘要，保留关键情节、人物关系与情绪走向，用第三人称叙述。\n已有的前情摘要：${s.summary || '（无）'}\n\n需要压缩的剧情：\n${text}`;
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getKey() },
+        body: JSON.stringify({ model: 'deepseek-flash', temperature: 0.3, max_tokens: 350, stream: false, messages: [{ role: 'user', content: prompt }] })
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      const sum = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+      if (sum) { s.summary = sum.trim(); s.messages = s.messages.slice(cut); saveDB(); }
+    } catch (err) {}
+  }
+
+  /* ---------- 启动 ---------- */
+  renderChat(); renderSessions();
+  if (!getKey()) { openSettings(); document.getElementById('sMsg').textContent = '第一次使用，请填写 API Key'; }
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
-    });
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
   }
 </script>
 </body>
