@@ -6,6 +6,8 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#4d6bfe">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>DeepSeek 助手</title>
 <style>
   * { box-sizing: border-box; }
@@ -240,6 +242,12 @@
 
   loadHistory();
   if (!getKey()) openKey();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
 </script>
 </body>
 </html>
